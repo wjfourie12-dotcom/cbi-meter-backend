@@ -55,14 +55,20 @@ module.exports = async function handler(req, res) {
 
         // 3. Fetch the daily electricity statistics for your CBI Meter
         const date = new Date();
-        const startMonth = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}01`;
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
         
-        const statsData = await tuyaRequest(`/v1.0/devices/${DEVICE_ID}/stat/days?stat_code=add_ele&start_day=${startMonth}`, 'GET', accessToken);
+        const startMonth = `${year}${month}01`;
+        const endDay = `${year}${month}${day}`;
+        
+        // FIX: Using the correct '/statistics/days' path and 'code=add_ele' parameter
+        const statsData = await tuyaRequest(`/v1.0/devices/${DEVICE_ID}/statistics/days?code=add_ele&start_day=${startMonth}&end_day=${endDay}`, 'GET', accessToken);
         
         if (!statsData.success) throw new Error("Stats Error: " + statsData.msg);
 
         // 4. Format the data perfectly for our HTML dashboard
-        const rawDays = statsData.result.Days || {};
+        const rawDays = (statsData.result && statsData.result.days) ? statsData.result.days : {};
         const formattedData = Object.keys(rawDays).map(dayKey => {
             // Convert "20260615" to "2026-06-15"
             const formattedDate = `${dayKey.substring(0,4)}-${dayKey.substring(4,6)}-${dayKey.substring(6,8)}`;
