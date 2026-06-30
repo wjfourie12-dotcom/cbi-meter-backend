@@ -19,13 +19,26 @@ async function tuyaRequest(path, method = 'GET', accessToken = '') {
     const timestamp = Date.now().toString();
     const nonce = ''; // Tuya allows empty nonce for most requests
     
+    // Tuya REQUIRES query parameters to be strictly sorted alphabetically
+    const [urlPath, queryString] = path.split('?');
+    let sortedPath = urlPath;
+    
+    if (queryString) {
+        const params = new URLSearchParams(queryString);
+        const sortedParams = Array.from(params.entries())
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([k, v]) => `${k}=${v}`)
+            .join('&');
+        sortedPath += '?' + sortedParams;
+    }
+
     // Tuya String-To-Sign format: HTTPMethod + \n + Content-SHA256 + \n + Headers + \n + URL
     const contentHash = crypto.createHash('sha256').update('', 'utf8').digest('hex'); // Empty body for GET
-    const stringToSign = `${method}\n${contentHash}\n\n${path}`;
+    const stringToSign = `${method}\n${contentHash}\n\n${sortedPath}`;
     
     const sign = calcSign(CLIENT_ID, accessToken, timestamp, nonce, stringToSign, CLIENT_SECRET);
     
-    const response = await fetch(`${HOST}${path}`, {
+    const response = await fetch(`${HOST}${sortedPath}`, {
         method: method,
         headers: {
             'client_id': CLIENT_ID,
@@ -55,20 +68,18 @@ module.exports = async function handler(req, res) {
 
         // 3. Fetch the daily electricity statistics for your CBI Meter
         const date = new Date();
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
+        const startDay = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}01`;
         
-        const startMonth = `${year}${month}01`;
-        const endDay = `${year}${month}${day}`;
+        // Calculate the last day of the current month
+        const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        const endDay = `${lastDayOfMonth.getFullYear()}${String(lastDayOfMonth.getMonth() + 1).padStart(2, '0')}${String(lastDayOfMonth.getDate()).padStart(2, '0')}`;
         
-        // FIX: Using the correct '/statistics/days' path and 'code=add_ele' parameter
-        const statsData = await tuyaRequest(`/v1.0/devices/${DEVICE_ID}/statistics/days?code=add_ele&start_day=${startMonth}&end_day=${endDay}`, 'GET', accessToken);
+        const statsData = await tuyaRequest(`/v1.0/devices/${DEVICE_ID}/statistics/days?stat_code=add_ele&start_day=${startDay}&end_day=${endDay}`, 'GET', accessToken);
         
         if (!statsData.success) throw new Error("Stats Error: " + statsData.msg);
 
         // 4. Format the data perfectly for our HTML dashboard
-        const rawDays = (statsData.result && statsData.result.days) ? statsData.result.days : {};
+        const rawDays = statsData.result.days || statsData.result.Days || {};
         const formattedData = Object.keys(rawDays).map(dayKey => {
             // Convert "20260615" to "2026-06-15"
             const formattedDate = `${dayKey.substring(0,4)}-${dayKey.substring(4,6)}-${dayKey.substring(6,8)}`;
