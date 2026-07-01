@@ -62,8 +62,9 @@ module.exports = async function handler(req, res) {
         const statusArray = statusData.result || statusData.status;
         
         const energyPoint = statusArray.find(dp => dp.code === 'add_ele' || dp.code === 'total_forward_energy');
-        let currentTotalKwh = parseFloat(energyPoint.value);
-        if (currentTotalKwh > 1000) currentTotalKwh = currentTotalKwh / 100;
+        
+        // ALWAYS divide by 100 to convert to true kWh
+        let currentTotalKwh = parseFloat(energyPoint.value) / 100;
 
         // 2. GET SAST TIMEZONE DATE (UTC+2 for Cape Town)
         const now = new Date();
