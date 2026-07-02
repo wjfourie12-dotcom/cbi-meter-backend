@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+onst crypto = require('crypto');
 
 // 1. ADD YOUR TUYA CREDENTIALS HERE
 const CLIENT_ID = 'p9dpw35gs4wtjx3pwf8q'; 
@@ -59,13 +59,18 @@ module.exports = async function handler(req, res) {
         if (!tokenData.success) throw new Error("Token Error: " + tokenData.msg);
         const accessToken = tokenData.result.access_token;
 
-        // Fetch LIVE status instead of the blocked statistics API
-        const statusData = await tuyaRequest(`/v1.0/devices/${DEVICE_ID}/status`, 'GET', accessToken);
-        if (!statusData.success) throw new Error("Status Error: " + statusData.msg);
+        // Fetch GRAND TOTAL from Tuya Cloud Statistics instead of the Live Pulse
+        const statusData = await tuyaRequest(`/v1.0/devices/${DEVICE_ID}/statistics/total?code=add_ele`, 'GET', accessToken);
+        if (!statusData.success) throw new Error("Statistics Error: " + statusData.msg + ". Did you authorize 'Device Data Statistics' in Tuya?");
+
+        // Format it so the HTML dashboard understands it
+        const totalValue = parseFloat(statusData.result.total || 0);
 
         res.status(200).json({
             success: true,
-            status: statusData.result
+            status: [
+                { code: 'total_forward_energy', value: totalValue }
+            ]
         });
 
     } catch (error) {
